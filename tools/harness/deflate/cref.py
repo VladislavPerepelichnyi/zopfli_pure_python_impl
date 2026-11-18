@@ -8,7 +8,21 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import build as _build  # noqa: E402
+
+
+def _load_build(path, name):
+    # Load build.py by path under a unique name: tools/harness/squeeze and
+    # tools/harness/deflate both have a build.py, and a plain "import build"
+    # returns whichever one was imported first in the pytest session.
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(name, path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+_build = _load_build(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                 "build.py"), "_zopfli_deflate_harness_build")
 
 _lib = None
 
