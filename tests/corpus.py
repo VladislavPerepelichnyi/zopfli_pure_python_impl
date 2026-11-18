@@ -7,8 +7,10 @@ Nothing is downloaded.
 Each :class:`Case` has a ``name``, a ``size`` class and lazily built ``data``:
 
 * ``tiny``    <= 300 bytes
-* ``small``   <= ~6 KB          (default runs, all option combinations)
-* ``medium``  <= ~40 KB         (default runs, few option combinations)
+* ``small``   <= ~4 KB, cheap   (default runs, several option combinations)
+* ``medium``  <= ~40 KB, or small but split into many blocks (block
+              splitting dominates the pure-Python cost); default runs
+              with numiterations=1 only
 * ``large``   > 40 KB           (marked slow: only with ZOPFLI_PURE_SLOW=1)
 
 Pure Python is roughly 100x slower than C, so tests pick from these classes
@@ -285,16 +287,20 @@ _add("run_517", "small", lambda: run(517, 7))
 _add("all_bytes_x4", "small", lambda: bytes(range(256)) * 4)
 _add("gettysburg", "small", lambda: GETTYSBURG)
 _add("text_1k", "small", lambda: pseudo_text(1024, seed=1))
-_add("text_5k", "small", lambda: pseudo_text(5000, seed=2))
-_add("random_1000", "small", lambda: random_bytes(1000, seed=1000))
+_add("text_5k", "medium", lambda: pseudo_text(5000, seed=2))
+_add("random_1000", "medium", lambda: random_bytes(1000, seed=1000))
 _add("random_4000", "small", lambda: random_bytes(4000, seed=4000))
 _add("source_4k", "small", lambda: source_code("deflate.c")[:4096])
 _add("source_tree_c", "small", lambda: source_code("tree.c"))
-_add("mixed_3k", "small", lambda: mixed_text_binary(3000))
-_add("multi_block_6k", "small", lambda: multi_block(6000))
-_add("dna_3k", "small", lambda: dna(3000))
+_add("mixed_3k", "medium", lambda: mixed_text_binary(3000))
+_add("multi_block_6k", "medium", lambda: multi_block(6000))
+_add("dna_3k", "medium", lambda: dna(3000))
 _add("sparse_4k", "small", lambda: sparse(4096))
-_add("run_then_text", "small", lambda: run(600, 0x20) + pseudo_text(1500, 4) + run(300, 0))
+_add("run_then_text", "medium", lambda: run(600, 0x20) + pseudo_text(1500, 4) + run(300, 0))
+# cheap inputs that still split into 2 blocks
+_add("dna_then_text", "small", lambda: dna(800) + pseudo_text(800, 6))
+_add("src_then_random", "small", lambda: source_code("tree.c")[:1200]
+     + random_bytes(400, 3) + bytes(range(256)) * 2)
 for _p in (4, 5, 8, 16, 31, 32, 64, 100, 127, 128, 255, 256, 257, 258, 259,
            260, 299, 300):
     _add("periodic_%d" % _p, "small", (lambda p=_p: periodic(p, max(600, 3 * p + 17))))

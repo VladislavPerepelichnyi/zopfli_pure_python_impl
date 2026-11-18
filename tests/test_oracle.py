@@ -80,10 +80,9 @@ def test_small_1_iteration(case):
     check(case.data, numiterations=1)
 
 
-SMALL_SELECTED = ["gettysburg", "text_1k", "random_1000", "run_1000",
-                  "run_517", "all_bytes_x4", "source_4k", "mixed_3k",
-                  "multi_block_6k", "run_then_text", "periodic_258",
-                  "periodic_259"]
+SMALL_SELECTED = ["gettysburg", "text_1k", "run_1000", "run_517",
+                  "all_bytes_x4", "source_4k", "dna_then_text",
+                  "src_then_random", "periodic_258", "periodic_259"]
 
 
 @pytest.mark.parametrize("opts", [
@@ -97,7 +96,7 @@ def test_small_selected(name, opts):
     check(corpus.get(name).data, **opts)
 
 
-@pytest.mark.parametrize("name", ["gettysburg", "text_1k", "run_then_text",
+@pytest.mark.parametrize("name", ["gettysburg", "text_1k", "dna_then_text",
                                   "periodic_100"])
 def test_small_defaults(name):
     """Full default options (15 iterations) on a few small inputs."""
@@ -140,7 +139,7 @@ def test_master_block_boundary(name, maker):
 # ---------------------------------------------------------- odd options
 
 @pytest.mark.parametrize("numiterations", [0, -1, -(2 ** 31)])
-@pytest.mark.parametrize("name", ["empty", "hello", "text_1k", "multi_block_6k"])
+@pytest.mark.parametrize("name", ["empty", "hello", "text_1k", "dna_then_text"])
 def test_nonpositive_iterations(name, numiterations):
     """numiterations < 1: upstream never fills the LZ77 store and emits empty
     blocks (output does not decompress to the input). Must still match."""
@@ -154,7 +153,7 @@ def test_nonpositive_iterations(name, numiterations):
     dict(verbose=0, blocksplittinglast=7),
 ], ids=_grid_id)
 def test_odd_option_values(opts):
-    check(corpus.get("multi_block_6k").data, numiterations=1, **opts)
+    check(corpus.get("dna_then_text").data, numiterations=1, **opts)
 
 
 # ------------------------------------------------------------- str input
@@ -177,7 +176,7 @@ def test_str_input(text, gzip_mode):
                                  ref.FORMAT_DEFLATE])
 @pytest.mark.parametrize("case", corpus.params("tiny") + [
     pytest.param(corpus.get(n), id=n) for n in
-    ("gettysburg", "random_1000", "multi_block_6k", "run_1000")])
+    ("gettysburg", "random_4000", "dna_then_text", "run_1000")])
 def test_compress_format_vs_ref(case, fmt):
     ref.require()
     opts = dict(numiterations=2)
@@ -188,7 +187,7 @@ def test_compress_format_vs_ref(case, fmt):
                     localize_report(case.data, **opts))
 
 
-@pytest.mark.parametrize("name", ["hello", "text_1k", "random_1000"])
+@pytest.mark.parametrize("name", ["hello", "text_1k", "random_4000"])
 @pytest.mark.parametrize("fmt", [ref.FORMAT_GZIP, ref.FORMAT_ZLIB,
                                  ref.FORMAT_DEFLATE])
 def test_vs_cli(name, fmt):

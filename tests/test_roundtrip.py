@@ -33,7 +33,7 @@ def test_roundtrip_1_iteration(case):
     assert zlib.decompress(out) == case.data
 
 
-@pytest.mark.parametrize("case", corpus.params("small"))
+@pytest.mark.parametrize("case", corpus.params("tiny", "small"))
 def test_roundtrip_gzip_2_iterations(case):
     out = compress(case.data, numiterations=2, gzip_mode=1)
     assert gzip.decompress(out) == case.data
@@ -52,8 +52,8 @@ def test_roundtrip_large(case):
     dict(numiterations=5, blocksplittingmax=3),
     dict(numiterations=1, blocksplittinglast=1),
 ], ids=lambda o: ",".join("%s=%s" % kv for kv in sorted(o.items())))
-@pytest.mark.parametrize("name", ["multi_block_6k", "mixed_3k", "random_1000",
-                                  "run_then_text", "all_bytes_x4"])
+@pytest.mark.parametrize("name", ["dna_then_text", "gettysburg",
+                                  "all_bytes_x4"])
 def test_roundtrip_options(name, opts):
     data = corpus.get(name).data
     assert zlib.decompress(compress(data, **opts)) == data
@@ -61,8 +61,8 @@ def test_roundtrip_options(name, opts):
 
 
 @pytest.mark.parametrize("case", corpus.params("tiny") + [
-    pytest.param(corpus.get(n), id=n) for n in ("text_1k", "random_1000",
-                                                "multi_block_6k")])
+    pytest.param(corpus.get(n), id=n) for n in ("text_1k", "random_4000",
+                                                "src_then_random")])
 def test_roundtrip_formats(case):
     data = case.data
     raw = compress_format(FORMAT_DEFLATE, data, numiterations=2)

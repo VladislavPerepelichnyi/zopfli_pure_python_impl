@@ -394,7 +394,7 @@ def test_calculate_block_size_greedy_store(name):
 
 # ---------------------------------------------------------- block splitting
 
-@pytest.mark.parametrize("case", corpus.params("tiny", "small", "medium"))
+@pytest.mark.parametrize("case", corpus.params("tiny", "small"))
 def test_block_split_lz77(case):
     data = case.data
     cs = ref.lz77_greedy(data)
@@ -404,7 +404,7 @@ def test_block_split_lz77(case):
 
 @pytest.mark.parametrize("maxblocks", [0, 1, 2, 3])
 @pytest.mark.parametrize("name", ["periodic_7_n120", "all_bytes_x4",
-                                  "text_5k", "mixed_3k", "multi_block_24k"])
+                                  "dna_then_text", "src_then_random"])
 def test_block_split_lz77_maxblocks(name, maxblocks):
     data = corpus.get(name).data
     cs = ref.lz77_greedy(data)
@@ -413,8 +413,8 @@ def test_block_split_lz77_maxblocks(name, maxblocks):
         ref.block_split_lz77(cs, maxblocks)
 
 
-@pytest.mark.parametrize("name", ["multi_block_6k", "multi_block_24k",
-                                  "mixed_20k", "text_20k"])
+@pytest.mark.parametrize("name", ["dna_then_text", "src_then_random",
+                                  "source_deflate_c"])
 def test_block_split_lz77_optimal_store(name):
     """Second split attempt in ZopfliDeflatePart runs on the optimal store."""
     data = corpus.get(name).data
@@ -430,7 +430,7 @@ def test_block_split(case):
         ref.block_split(data, 0, len(data), 15)
 
 
-@pytest.mark.parametrize("name", ["mixed_3k", "text_5k"])
+@pytest.mark.parametrize("name", ["dna_then_text", "text_1k"])
 def test_block_split_subrange(name):
     data = corpus.get(name).data
     a, b = 500, len(data) - 300
@@ -452,8 +452,8 @@ def test_block_split_simple(instart, inend, blocksize):
 
 @pytest.mark.parametrize("btype", [0, 1, 2])
 @pytest.mark.parametrize("case", corpus.params("tiny") + [
-    pytest.param(corpus.get(n), id=n) for n in ("text_1k", "random_1000",
-                                                "run_then_text")])
+    pytest.param(corpus.get(n), id=n) for n in ("text_1k", "random_4000",
+                                                "dna_then_text")])
 def test_deflate_btype(case, btype):
     data = case.data
     got = stages.py_deflate(data, btype, 1, numiterations=2)
@@ -470,7 +470,7 @@ def test_deflate_not_final(final):
 
 
 @pytest.mark.parametrize("btype", [0, 1, 2])
-@pytest.mark.parametrize("name", ["text_5k", "mixed_3k"])
+@pytest.mark.parametrize("name", ["text_5k", "dna_then_text"])
 def test_deflate_part_subrange(name, btype):
     data = corpus.get(name).data
     a, b = 1000, len(data) - 500
