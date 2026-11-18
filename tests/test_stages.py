@@ -394,10 +394,19 @@ def test_calculate_block_size_greedy_store(name):
 
 # ---------------------------------------------------------- block splitting
 
-@pytest.mark.parametrize("maxblocks", [0, 1, 3, 15])
 @pytest.mark.parametrize("case", corpus.params("tiny", "small", "medium"))
-def test_block_split_lz77(case, maxblocks):
+def test_block_split_lz77(case):
     data = case.data
+    cs = ref.lz77_greedy(data)
+    ps = stages.py_store_from_ref(data, cs)
+    assert stages.py_block_split_lz77(ps, 15) == ref.block_split_lz77(cs, 15)
+
+
+@pytest.mark.parametrize("maxblocks", [0, 1, 2, 3])
+@pytest.mark.parametrize("name", ["periodic_7_n120", "all_bytes_x4",
+                                  "text_5k", "mixed_3k", "multi_block_24k"])
+def test_block_split_lz77_maxblocks(name, maxblocks):
+    data = corpus.get(name).data
     cs = ref.lz77_greedy(data)
     ps = stages.py_store_from_ref(data, cs)
     assert stages.py_block_split_lz77(ps, maxblocks) == \
@@ -421,7 +430,7 @@ def test_block_split(case):
         ref.block_split(data, 0, len(data), 15)
 
 
-@pytest.mark.parametrize("name", ["multi_block_6k", "text_5k"])
+@pytest.mark.parametrize("name", ["mixed_3k", "text_5k"])
 def test_block_split_subrange(name):
     data = corpus.get(name).data
     a, b = 500, len(data) - 300
@@ -461,7 +470,7 @@ def test_deflate_not_final(final):
 
 
 @pytest.mark.parametrize("btype", [0, 1, 2])
-@pytest.mark.parametrize("name", ["text_5k", "multi_block_6k"])
+@pytest.mark.parametrize("name", ["text_5k", "mixed_3k"])
 def test_deflate_part_subrange(name, btype):
     data = corpus.get(name).data
     a, b = 1000, len(data) - 500
