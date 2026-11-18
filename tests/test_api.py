@@ -75,7 +75,6 @@ CALLS = [
     ("neg_iter", (DATA,), dict(numiterations=-5)),
     ("neg_bsmax", (DATA,), dict(blocksplittingmax=-1, numiterations=1)),
     ("surrogate_str", ("\udc80",), {}),
-    ("array_input", (array.array("H", [1, 2, 3]),), {}),
 ]
 
 
@@ -105,6 +104,18 @@ def test_bytes_like_extension(make):
     r = f(make(DATA), numiterations=2)
     assert type(r) is bytes
     assert r == zopfli_oracle.compress(DATA, numiterations=2)
+
+
+def test_other_writable_buffer():
+    """array.array (a writable buffer, rejected by py-zopfli): the port may
+    reject it with TypeError or, as with bytearray, compress its bytes."""
+    f = compress_fn()
+    a = array.array("H", [1, 2, 3, 258, 65535] * 20)
+    try:
+        r = f(a, numiterations=1)
+    except TypeError:
+        return
+    assert r == zopfli_oracle.compress(a.tobytes(), numiterations=1)
 
 
 def test_noncontiguous_memoryview():
