@@ -80,7 +80,10 @@ ROUNDTRIP = {
     "one_byte": b"x",
     "small_text": b"Zopfli is a compression library programmed in C.\n" * 3,
     "runs": b"a" * 300 + b"b" * 300 + b"\x00" * 1000,
-    "random_binary": bytes(random.Random(1).randrange(256) for _ in range(3000)),
+    # randbytes output is incompressible: zopfli emits stored blocks for it.
+    "random_binary": random.Random(1).randbytes(3000),
+    # (bytes of randrange(256) from the same seed happen to get a dynamic block)
+    "randrange_binary": bytes(random.Random(1).randrange(256) for _ in range(3000)),
 }
 
 
