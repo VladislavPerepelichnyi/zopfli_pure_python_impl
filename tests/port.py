@@ -10,6 +10,8 @@ the reason). A module that exists but fails to import for another reason
 import pytest
 
 _compress_cache = {}
+_DEFAULTS = dict(verbose=0, numiterations=15, blocksplitting=1,
+                 blocksplittinglast=0, blocksplittingmax=15, gzip_mode=0)
 
 
 def need(modname, *attrs):
@@ -42,8 +44,14 @@ def compress(data, **opts):
     """zopfli_pure.compress(data, **opts), memoised per session so that the
     round-trip and oracle tests can share the (slow) pure-Python result."""
     fn = compress_fn()
+    full = dict(_DEFAULTS)
+    full.update(opts)
+    if set(full) == set(_DEFAULTS) and all(
+            type(v) in (int, bool) for v in full.values()):
+        # normalise so that equal calls share results
+        full = dict((k, int(v)) for k, v in full.items())
     key = (bytes(data) if not isinstance(data, str) else data,
-           tuple(sorted(opts.items())))
+           tuple(sorted(full.items())))
     r = _compress_cache.get(key)
     if r is None:
         r = fn(data, **opts)
