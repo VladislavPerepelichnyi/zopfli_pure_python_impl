@@ -115,6 +115,7 @@ def _setup(lib):
     sig("ref_lengths_to_symbols", None, [P(c_uint), c_size_t, c_uint,
                                          P(c_uint)])
     sig("ref_calculate_entropy", None, [P(c_size_t), c_size_t, P(c_double)])
+    sig("ref_symbol_fn", c_int, [c_int, c_int])
 
 
 def _load():
@@ -488,3 +489,17 @@ def calculate_entropy(count):
     out = (c_double * max(1, n))()
     lib().ref_calculate_entropy(c, n, out)
     return list(out[:n])
+
+
+# ---------------------------------------------------------------- symbols.h
+
+SYMBOL_FUNCTIONS = ("get_dist_extra_bits", "get_dist_extra_bits_value",
+                    "get_dist_symbol", "get_length_extra_bits",
+                    "get_length_extra_bits_value", "get_length_symbol",
+                    "get_length_symbol_extra_bits",
+                    "get_dist_symbol_extra_bits")
+
+
+def symbol_fn(name, x):
+    """Call the symbols.h function `name` (snake_case, as in the port)."""
+    return lib().ref_symbol_fn(SYMBOL_FUNCTIONS.index(name), x)

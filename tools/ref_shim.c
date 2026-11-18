@@ -301,3 +301,24 @@ void ref_lengths_to_symbols(const unsigned* lengths, size_t n,
 void ref_calculate_entropy(const size_t* count, size_t n, double* bitlengths) {
   ZopfliCalculateEntropy(count, n, bitlengths);
 }
+
+/* --------------------------------------------------------------- symbols.h
+symbols.h functions are static (inline); expose them through one dispatcher.
+which: 0 GetDistExtraBits, 1 GetDistExtraBitsValue, 2 GetDistSymbol,
+3 GetLengthExtraBits, 4 GetLengthExtraBitsValue, 5 GetLengthSymbol,
+6 GetLengthSymbolExtraBits, 7 GetDistSymbolExtraBits. */
+#include "symbols.h"
+
+int ref_symbol_fn(int which, int x) {
+  switch (which) {
+    case 0: return ZopfliGetDistExtraBits(x);
+    case 1: return ZopfliGetDistExtraBitsValue(x);
+    case 2: return ZopfliGetDistSymbol(x);
+    case 3: return ZopfliGetLengthExtraBits(x);
+    case 4: return ZopfliGetLengthExtraBitsValue(x);
+    case 5: return ZopfliGetLengthSymbol(x);
+    case 6: return ZopfliGetLengthSymbolExtraBits(x);
+    case 7: return ZopfliGetDistSymbolExtraBits(x);
+  }
+  return -1;
+}
