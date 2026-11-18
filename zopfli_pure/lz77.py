@@ -7,7 +7,7 @@ chain counter is compiled in). See docs/notes/lz77.md for the porting notes.
 
 from .util import (ZOPFLI_MAX_MATCH, ZOPFLI_MIN_MATCH, ZOPFLI_NUM_LL,
                    ZOPFLI_NUM_D, ZOPFLI_WINDOW_SIZE, ZOPFLI_WINDOW_MASK,
-                   ZOPFLI_MAX_CHAIN_HITS, ZOPFLI_CACHE_LENGTH)
+                   ZOPFLI_MAX_CHAIN_HITS)
 from .symbols import LENGTH_SYMBOL, DIST_SYMBOL
 from .cache import (LongestMatchCache, max_cached_sublen, cache_to_sublen,
                     sublen_to_cache)
@@ -243,74 +243,12 @@ def verify_len_dist(data, datasize, pos, dist, length):
     assert data[pos - dist:pos - dist + length] == data[pos:pos + length]
 
 
-def get_match(array, scan, match, end):
-    """Port of GetMatch (lz77.c, static), on indices instead of pointers.
-
-    Returns the index after the last byte from ``scan`` that equals the
-    corresponding byte from ``match``, stopping at ``end``. The C compares 8
-    bytes at a time while ``scan < end - 8`` and then byte by byte; the result
-    is the same as a plain byte-by-byte comparison, which is what is done here.
-    """
-    while scan != end and array[scan] == array[match]:
-        scan += 1
-        match += 1
-    return scan
-
-
-def try_get_from_longest_match_cache(s, pos, limit, sublen):
-    """Port of TryGetFromLongestMatchCache (lz77.c, static).
-
-    Returns ``(found, limit, distance, length)``: ``found`` is 1 if the values
-    came from the cache (then distance/length are set), else 0 and ``limit``
-    may have been lowered. (find_longest_match inlines this logic; this
-    function is kept for reference and tests.)
-    """
-    lmc = s.lmc
-    lmcpos = pos - s.blockstart
-    if lmc is None:
-        return 0, limit, None, None
-    clen = lmc.length[lmcpos]
-    cache_available = clen == 0 or lmc.dist[lmcpos] != 0
-    limit_ok_for_cache = cache_available and (
-        limit == ZOPFLI_MAX_MATCH or clen <= limit
-        or (sublen is not None
-            and max_cached_sublen(lmc, lmcpos, clen) >= limit))
-    if limit_ok_for_cache and cache_available:
-        if sublen is None or clen <= max_cached_sublen(lmc, lmcpos, clen):
-            length = clen
-            if length > limit:
-                length = limit
-            if sublen is not None:
-                cache_to_sublen(lmc, lmcpos, length, sublen)
-                distance = sublen[length]
-                if limit == ZOPFLI_MAX_MATCH and length >= ZOPFLI_MIN_MATCH:
-                    assert sublen[length] == lmc.dist[lmcpos]
-            else:
-                distance = lmc.dist[lmcpos]
-            return 1, limit, distance, length
-        # Can't use much of the cache, since the "sublens" need to be
-        # calculated, but at least we already know when to stop.
-        limit = clen
-    return 0, limit, None, None
-
-
-def store_in_longest_match_cache(s, pos, limit, sublen, distance, length):
-    """Port of StoreInLongestMatchCache (lz77.c, static)."""
-    lmc = s.lmc
-    if lmc is None:
-        return
-    lmcpos = pos - s.blockstart
-    cache_available = lmc.length[lmcpos] == 0 or lmc.dist[lmcpos] != 0
-    if limit == ZOPFLI_MAX_MATCH and sublen is not None and not cache_available:
-        assert lmc.length[lmcpos] == 1 and lmc.dist[lmcpos] == 0
-        lmc.dist[lmcpos] = 0 if length < ZOPFLI_MIN_MATCH else distance
-        lmc.length[lmcpos] = 0 if length < ZOPFLI_MIN_MATCH else length
-        assert not (lmc.length[lmcpos] == 1 and lmc.dist[lmcpos] == 0)
-        sublen_to_cache(sublen, lmcpos, length, lmc)
-
-
 def find_longest_match(s, h, array, pos, size, limit, sublen):
     """Port of ZopfliFindLongestMatch (lz77.c).
+
+    The static helpers TryGetFromLongestMatchCache, StoreInLongestMatchCache
+    and GetMatch are inlined here (same conditions, same order); GetMatch's
+    8-bytes-at-a-time loop is replaced by a byte loop with the same result.
 
     Finds the longest match (length and corresponding distance) for LZ77
     compression. ``sublen`` is a list of at least 259 ints (filled in place:
@@ -387,7 +325,22 @@ def find_longest_match(s, h, array, pos, size, limit, sublen):
                         same = limit
                     scan += same
                     match += same
-                # GetMatch, inlined.
+                # GetMatch, inlined. The C compares 8 bytes at a time, then
+                # byte by byte; only the resulting position matters. Here: if
+                # the next 8 bytes match, try the whole rest at once, else
+                # 32-byte chunks; then finish byte by byte.
+                if (arrayend - scan > 8
+                        and array[scan:scan + 8] == array[match:match + 8]):
+                    n = arrayend - scan
+                    if array[scan:arrayend] == array[match:match + n]:
+                        scan = arrayend
+                    else:
+                        scan += 8
+                        match += 8
+                        while (arrayend - scan >= 32 and array[scan:scan + 32]
+                               == array[match:match + 32]):
+                            scan += 32
+                            match += 32
                 while scan != arrayend and array[scan] == array[match]:
                     scan += 1
                     match += 1
