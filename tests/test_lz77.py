@@ -238,6 +238,7 @@ def run_find_longest_match(clib, data, instart, add_lmc, plan, passes=1,
     csub = (ctypes.c_ushort * 259)()
     psub = [0] * 259
     ph = Hash(ZOPFLI_WINDOW_SIZE)
+    reset_hash(ZOPFLI_WINDOW_SIZE, ph)  # hh_new does Alloc + Reset
     ps = plz77.BlockState(Options(), instart, size, add_lmc)
     calls = 0
     try:
@@ -396,6 +397,7 @@ def test_hash_update(clib, name, data):
         return
     ch = clib.hh_new()
     ph = Hash(ZOPFLI_WINDOW_SIZE)
+    reset_hash(ZOPFLI_WINDOW_SIZE, ph)  # hh_new does Alloc + Reset
     try:
         compare_hash(clib, ch, ph, "fresh")
         clib.hh_warmup(data, 0, size, ch)

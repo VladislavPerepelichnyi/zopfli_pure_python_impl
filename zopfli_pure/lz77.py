@@ -439,7 +439,8 @@ def lz77_greedy(s, in_, instart, inend, store, h):
                 dist = prev_match
                 lengthscore = prevlengthscore
                 # Add to output.
-                verify_len_dist(in_, inend, i - 1, dist, leng)
+                if __debug__:  # assert-only, like C's ZopfliVerifyLenDist under NDEBUG
+                    verify_len_dist(in_, inend, i - 1, dist, leng)
                 store_lit_len_dist(leng, dist, i - 1, store)
                 for _ in range(2, leng):
                     assert i < inend
@@ -457,7 +458,8 @@ def lz77_greedy(s, in_, instart, inend, store, h):
 
         # Add to output.
         if lengthscore >= ZOPFLI_MIN_MATCH:
-            verify_len_dist(in_, inend, i, dist, leng)
+            if __debug__:  # assert-only, like C's ZopfliVerifyLenDist under NDEBUG
+                verify_len_dist(in_, inend, i, dist, leng)
             store_lit_len_dist(leng, dist, i, store)
         else:
             leng = 1

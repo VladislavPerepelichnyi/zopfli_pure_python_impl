@@ -43,7 +43,9 @@ class Hash(object):
         self.hashval2 = None
         self.val2 = 0
         self.same = None      # Amount of repetitions of same byte after this.
-        reset_hash(window_size, self)
+        # ZopfliAllocHash only allocates; users call ZopfliResetHash themselves
+        # (Greedy, GetBestLengths, FollowPath), so no reset here.
+        alloc_hash(window_size, self)
 
 
 def alloc_hash(window_size, h):

@@ -627,12 +627,12 @@ def add_lz77_block(options, btype, final, lz77, lstart, lend,
     # End symbol.
     w.add_huffman_bits(ll_symbols[256], ll_lengths[256])
 
+    uncompressed_size = 0
+    litlens = lz77.litlens
+    dists = lz77.dists
+    for i in range(lstart, lend):
+        uncompressed_size += 1 if dists[i] == 0 else litlens[i]
     if options.verbose:
-        uncompressed_size = 0
-        litlens = lz77.litlens
-        dists = lz77.dists
-        for i in range(lstart, lend):
-            uncompressed_size += 1 if dists[i] == 0 else litlens[i]
         compressed_size = len(w.out) - detect_block_size
         sys.stderr.write("compressed block size: %d (%dk) (unc: %d)\n" % (
             _c_int(compressed_size), _c_int(compressed_size // 1024),

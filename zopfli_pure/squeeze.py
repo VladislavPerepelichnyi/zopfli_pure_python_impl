@@ -308,8 +308,7 @@ def _best_lengths_stat(s, in_, instart, inend, stats, mincost,
     len_extra = _LEN_EXTRA
     dist_extra = _DIST_EXTRA
     dist_symbol = _DIST_SYMBOL
-    # ll_symbols[lsym] for each length (a pure lookup, no arithmetic).
-    len_llcost = [0.0, 0.0, 0.0] + [ll_symbols[_LEN_SYMBOL[k]] for k in range(3, 259)]
+    len_symbol = _LEN_SYMBOL
     flm = find_longest_match
     uh = update_hash
     sublen = [0] * 259
@@ -344,20 +343,16 @@ def _best_lengths_stat(s, in_, instart, inend, stats, mincost,
             kend = leng
         if kend >= 3:
             mincostaddcostj = mincost + cj
-            lastd = -1
-            db = 0
-            dc = 0.0
             for k in range(3, kend + 1):
                 jk = j + k
                 ck = costs[jk]
                 if ck <= mincostaddcostj:
                     continue
                 d = sublen[k]
-                if d != lastd:
-                    lastd = d
-                    db = dist_extra[d]
-                    dc = d_symbols[dist_symbol[d]]
-                newcost = len_extra[k] + db + len_llcost[k] + dc + cj
+                # GetCostStat(k, d), evaluated in full for every k as in C:
+                # lbits + dbits + ll_symbols[lsym] + d_symbols[dsym].
+                newcost = (len_extra[k] + dist_extra[d] + ll_symbols[len_symbol[k]]
+                           + d_symbols[dist_symbol[d]] + cj)
                 if newcost < ck:
                     costs[jk] = newcost
                     length_array[jk] = k

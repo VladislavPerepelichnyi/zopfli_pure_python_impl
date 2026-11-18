@@ -60,9 +60,9 @@ check that all three agree bit-for-bit). Other choices:
 * lookup tables built at import from the `symbols` functions: length -> symbol and
   extra bits, distance (0..32768) -> symbol and extra bits, fixed-tree literal and
   length costs;
-* in the match loop the distance-dependent parts (`dbits`, `d_symbols[dsym]`) are
-  recomputed only when `sublen[k]` changes from the previous `k` (they are pure
-  functions of the distance, so this is a lookup cache, not an arithmetic change);
+* in the match loop `GetCostStat` is evaluated in full for every `k`, as in C (an
+  earlier version reused the distance-dependent terms while `sublen[k]` did not change;
+  that was removed because it is a cache the C does not have);
 * `costs[j]` is read once per position (`cj`); nothing writes `costs[j]` while position
   `j` is processed;
 * the C `sublen[259]` is a stack array reused across positions without clearing; the

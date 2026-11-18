@@ -87,6 +87,7 @@ def py_find_longest_match_scan(data, positions, instart=0, inend=None,
         inend = len(data)
     s = lz77.BlockState(_opts({}), instart, inend, 0)
     h = hashm.Hash(WINDOW_SIZE)
+    hashm.reset_hash(WINDOW_SIZE, h)
     windowstart = instart - WINDOW_SIZE if instart > WINDOW_SIZE else 0
     hashm.warmup_hash(data, windowstart, inend, h)
     i = windowstart
