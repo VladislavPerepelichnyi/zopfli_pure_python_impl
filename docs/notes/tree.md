@@ -131,3 +131,8 @@ ctypes.
 
 Speed (CPython 3.12): `length_limited_code_lengths` ~0.7 ms for 288 dense
 symbols, ~50 us for 32, ~20 us for 19; bit writer ~0.2 us per call.
+
+A one-off extended fuzz run (20 seeds, 9 (n, maxbits) configurations x 11
+generators, not part of the committed suite) also matched C on 79,200
+`length_limited_code_lengths` cases (plus `lengths_to_symbols` on each
+result), 10,000 entropy vectors and 6,000 bit writer sequences.

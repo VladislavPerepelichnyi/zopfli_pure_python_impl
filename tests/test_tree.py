@@ -62,11 +62,11 @@ def _build():
     return LIB
 
 
-@pytest.fixture(scope="module")
-def clib():
+def load_clib():
+    """Build (if needed) and load the C harness; None if it cannot be built."""
     path = _build()
     if path is None:
-        pytest.skip("gcc or reference C sources not available")
+        return None
     lib = ctypes.CDLL(path)
     P = ctypes.POINTER
     lib.h_length_limited_code_lengths.argtypes = [
@@ -85,6 +85,14 @@ def clib():
         ctypes.c_char_p, ctypes.c_size_t, ctypes.c_uint, P(ctypes.c_uint),
         ctypes.c_size_t, ctypes.c_char_p, ctypes.c_size_t, P(ctypes.c_uint)]
     lib.h_bitwriter.restype = ctypes.c_size_t
+    return lib
+
+
+@pytest.fixture(scope="module")
+def clib():
+    lib = load_clib()
+    if lib is None:
+        pytest.skip("gcc or reference C sources not available")
     return lib
 
 
@@ -410,3 +418,14 @@ def test_bitwriter_default():
     w.add_bit(1)
     w.add_huffman_bits(0b10, 2)
     assert (bytes(w.out), w.bp) == (b"\x03", 3)
+
+
+def test_length_limited_maxbits_over_15():
+    """Effective maxbits >= 16 is undefined behaviour in C (UPSTREAM_FINDINGS);
+    the port refuses it. With <= 16 used symbols maxbits is clamped and fine."""
+    f = list(range(1, 18))  # 17 used symbols
+    with pytest.raises(ValueError):
+        length_limited_code_lengths(f, 17, 16, [0] * 17)
+    bl = [0] * 16
+    assert length_limited_code_lengths(list(range(1, 17)), 16, 20, bl) == 0
+    assert sum(2.0 ** -b for b in bl) == 1.0
