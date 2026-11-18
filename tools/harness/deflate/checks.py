@@ -33,7 +33,7 @@ def init(use_stubs=True, seed=12345):
     global Options, BitWriter, LZ77Store, store_lld, rng, USE_STUBS
     USE_STUBS = use_stubs
     if use_stubs:
-        mods = stubs.install()
+        mods = stubs.install(prefer_real="--all-stubs" not in sys.argv)
     else:
         import importlib
         mods = {n: importlib.import_module("zopfli_pure." + n) for n in stubs.NAMES}
@@ -363,7 +363,7 @@ sys.path.insert(0, %(root)r); sys.path.insert(0, %(here)r)
 data = %(data)r
 if %(mine)r:
     if %(stub)r:
-        import stubs; stubs.install()
+        import stubs; stubs.install(%(prefer_real)r)
     import zopfli_pure as z
 else:
     import zopfli.zopfli as z
@@ -380,7 +380,8 @@ def check_verbose(big=20000):
             res = []
             for mine in (True, False):
                 code = VERBOSE_SNIPPET % dict(root=ROOT, here=HERE, data=data,
-                                              mine=mine, gz=gz, stub=USE_STUBS)
+                                              mine=mine, gz=gz, stub=USE_STUBS,
+                                              prefer_real="--all-stubs" not in sys.argv)
                 p = subprocess.run([sys.executable, "-c", code], capture_output=True,
                                    cwd=ROOT)
                 assert p.returncode == 0, p.stderr
@@ -406,6 +407,8 @@ def run_all(k=1, large_seeds=(0,), verbose_check=True):
 
 if __name__ == "__main__":
     init(use_stubs="--real" not in sys.argv)
+    print("stand-ins: %s" % ", ".join(
+        n for n, m in mods.items() if getattr(m, "__stub__", False)))
     result = run_all(1 if QUICK else 5, range(1 if QUICK else 3))
     for name in sorted(result):
         print("%-50s %d" % (name, result[name]))

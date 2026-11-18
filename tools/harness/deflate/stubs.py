@@ -216,23 +216,42 @@ def _blocksplitter():
     return m
 
 
-def install():
-    """Installs all stand-ins (and drops already-imported package modules)."""
+def install(prefer_real=True):
+    """Installs the stand-ins (and drops already-imported package modules).
+
+    With prefer_real, a real zopfli_pure module is used whenever it imports
+    (modules are tried in dependency order, so a real module may sit on top of
+    stand-ins of its own dependencies). Returns {name: module}; stand-ins have
+    the attribute __stub__ = True.
+    """
+    import importlib
     if cref.lib() is None:
         raise RuntimeError("C harness unavailable")
     import zopfli_pure
     for k in list(sys.modules):
         if k.startswith("zopfli_pure."):
             del sys.modules[k]
+    makers = {
+        "util": lambda m: _util(),
+        "symbols": lambda m: _symbols(),
+        "lz77": lambda m: _lz77(m["symbols"]),
+        "tree": lambda m: _tree(),
+        "bitwriter": lambda m: _bitwriter(),
+        "squeeze": lambda m: _squeeze(m["lz77"]),
+        "blocksplitter": lambda m: _blocksplitter(),
+    }
     mods = {}
-    mods["util"] = _util()
-    mods["symbols"] = _symbols()
-    mods["lz77"] = _lz77(mods["symbols"])
-    mods["tree"] = _tree()
-    mods["bitwriter"] = _bitwriter()
-    mods["squeeze"] = _squeeze(mods["lz77"])
-    mods["blocksplitter"] = _blocksplitter()
-    for name, mod in mods.items():
-        sys.modules["zopfli_pure." + name] = mod
-        setattr(zopfli_pure, name, mod)
+    for name in NAMES:
+        mod = None
+        if prefer_real:
+            try:
+                mod = importlib.import_module("zopfli_pure." + name)
+            except ImportError:
+                sys.modules.pop("zopfli_pure." + name, None)
+                mod = None
+        if mod is None:
+            mod = makers[name](mods)
+            sys.modules["zopfli_pure." + name] = mod
+            setattr(zopfli_pure, name, mod)
+        mods[name] = mod
     return mods

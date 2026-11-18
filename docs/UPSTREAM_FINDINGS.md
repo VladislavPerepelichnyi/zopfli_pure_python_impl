@@ -57,3 +57,66 @@ symbol), `AddWeighedStatFreqs(stats, 1.0, laststats, 0.5)` (keeps every entry
 most 288 * ~2,000,002 < 2^30.
 
 **Port:** uses the exact (unbounded) sum; the wrap is not reproduced.
+
+## 4. `deflate.c:760,786-792` AddLZ77BlockAutoType: the non-expensive fixed branch is dead code
+
+`expensivefixed = (lz77->size < 1000) || fixedcost <= dyncost * 1.1`. When
+`expensivefixed` is false, `fixedcost > dyncost * 1.1 >= dyncost` (costs are
+positive), so `fixedcost < dyncost` is false and
+`AddLZ77Block(options, 1, final, lz77, lstart, lend, ...)` (fixed tree on the
+original store) can never run.
+
+**Affects output:** no.
+
+**Port:** keeps the branch as written.
+
+## 5. `deflate.c:615,760` "small block" thresholds use the size of the whole store
+
+`ZopfliCalculateBlockSizeAutoType` skips the fixed-tree cost when
+`lz77->size > 1000`, and `AddLZ77BlockAutoType` forces the expensive fixed
+recomputation when `lz77->size < 1000`. Both test the size of the whole store,
+not of the block `[lstart, lend)`: in `ZopfliDeflatePart` that store is the
+concatenation of every block of the master block, and in the block splitter it
+is the whole store being split. So a tiny block inside a large input is never
+considered "small", and the two thresholds disagree at exactly 1000 symbols
+(`> 1000` vs `< 1000`). The comments ("for larger blocks", "Only do this for
+small blocks") suggest the block size was meant.
+
+**Affects output:** yes (it is the reference behaviour).
+
+**Port:** reproduced exactly (`lz77.size`, same comparisons).
+
+## 6. `deflate.c:598` ZopfliCalculateBlockSize(btype 0) of an empty range is 0 bits
+
+For `lstart == lend`, `length == 0` gives `blocks == 0` and a cost of 0, less
+than the 3 header bits any real block needs (fixed and dynamic costs include
+them). `ZopfliCalculateBlockSizeAutoType` therefore returns 0 for empty ranges.
+
+**Affects output:** no in practice: `AddLZ77BlockAutoType` special-cases
+`lstart == lend` before using the costs, and the block splitter does not
+evaluate empty ranges.
+
+**Port:** reproduced.
+
+## 7. Verbose statistics: `size_t` wrap and division by zero
+
+`deflate.c:929`, `zlib_container.c:78`, `gzip_container.c:87` compute
+`100.0 * (double)(insize - outsize) / (double)insize` with `size_t` operands,
+so an output larger than the input prints a huge positive percentage (for
+example `108510259257115017216.000000% Removed`), and an empty input prints
+`inf`. The containers also print sizes with `%d` after `(int)` casts.
+
+**Affects output:** only the `verbose` text on stderr.
+
+**Port:** reproduces the text exactly (64-bit wrap, IEEE division by zero,
+`(int)` truncation); checked against py-zopfli's stderr.
+
+## 8. `zlib_container.c:55` adler32 gets `(unsigned)insize`
+
+`adler32(in, (unsigned)insize)` truncates the length to 32 bits, so inputs of
+4 GiB or more would get a checksum of a prefix only. (The adler32 itself never
+overflows: its `5550`-byte chunks keep `s2` below 2^32.)
+
+**Affects output:** only for inputs >= 4 GiB.
+
+**Port:** reproduces the truncation (`insize & 0xFFFFFFFF`).
