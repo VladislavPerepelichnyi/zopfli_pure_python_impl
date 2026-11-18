@@ -11,9 +11,12 @@ the oracle `zopfli` = py-zopfli 0.4.3):
 ```sh
 PY=/home/vlad/thesis/wasm/pure_python_impl/zopfli_pure_python/.venv/bin/python
 
-$PY -m pytest                         # default run (minutes): slow tests skipped
-ZOPFLI_PURE_SLOW=1 $PY -m pytest      # also large inputs (> 40 KB), all periods 1..300
-ZOPFLI_PURE_SLOW=2 $PY -m pytest      # also inputs > 1 MB (master block boundary)
+$PY -m pytest                         # default run, slow tests skipped (~11 min, of
+                                      # which ~6 min are the files listed below)
+ZOPFLI_PURE_SLOW=1 $PY -m pytest      # + large inputs (> 40 KB), all periods 1..300,
+                                      #   15 iterations on small/medium (~+10 min)
+ZOPFLI_PURE_SLOW=2 $PY -m pytest      # + inputs > 1 MB (master block boundary, ~+1 min)
+$PY -m pytest tests/test_oracle.py tests/test_stages.py   # just the T suite parts
 $PY -m pytest tests/test_stages.py -k optimal     # one area
 ZOPFLI_PURE_HYPOTHESIS=thorough $PY -m pytest -k property   # 500 examples per property
 ```
@@ -59,6 +62,14 @@ fails to import is a failure, not a skip.
 | `test_purity.py` | Static AST scan of `zopfli_pure/` imports (only `math`, `array`, `sys`, `struct`, package-internal); dynamic run with `zlib`, `binascii`, `gzip`, `ctypes`, `_cffi_backend`, `zopfli`, ... poisoned in `sys.modules` |
 | `test_api.py` | `compress` argument handling vs py-zopfli: positional/keyword forms, defaults, str/bytes input, exception types for bad input, int overflow, verbose output; bytearray/memoryview extension |
 | `test_tree.py`, `test_lz77.py`, `test_squeeze.py`, `test_blocksplitter.py`, `test_deflate.py`, `test_containers.py` | Module tests written by the implementers (with their own harnesses in `tools/harness/`) |
+
+## Cost model
+
+Pure Python is ~100-250x slower than C. Block splitting dominates: every
+candidate split evaluates `ZopfliCalculateBlockSizeAutoType` (dynamic tree
+lengths, `EncodeTree` x8, katajainen), ~3 ms each in Python, thousands of times
+per input. Inputs that split into many blocks are therefore in the `medium`
+class even when they are only a few KB.
 
 ## Localising a mismatch by hand
 
