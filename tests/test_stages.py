@@ -485,3 +485,30 @@ def test_deflate_uncompressed_multi_block():
     data = corpus.random_bytes(140000, seed=5)
     got = stages.py_deflate(data, 0, 1)
     assert got == ref.deflate(data, 0, 1)
+
+
+# ------------------------------------------------------ harness self-check
+
+def test_localize_clean_and_detects_injected_fault(monkeypatch):
+    """localize() reports nothing on the real port and names the right stage
+    when a fault is injected into it."""
+    lz77 = need("lz77", "lz77_greedy")
+    d = need("deflate", "calculate_block_size")
+    data = corpus.get("dna_then_text").data
+    assert stages.localize(data, numiterations=1) == []
+
+    orig_greedy = lz77.lz77_greedy
+
+    def bad_greedy(s, in_, a, b, store, h):
+        orig_greedy(s, in_, a, b, store, h)
+        if store.size > 5:
+            store.litlens[5] ^= 1
+    monkeypatch.setattr(lz77, "lz77_greedy", bad_greedy)
+    orig_size = d.calculate_block_size
+    monkeypatch.setattr(d, "calculate_block_size",
+                        lambda lz, a, b, bt: orig_size(lz, a, b, bt) + (bt == 1))
+    findings = stages.localize(data, numiterations=1)
+    assert any(f.startswith("lz77_greedy:") and "LZ77 index 5" in f
+               for f in findings), findings
+    assert any(f.startswith("calculate_block_size block 0") for f in findings), \
+        findings

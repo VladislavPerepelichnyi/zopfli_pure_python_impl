@@ -208,28 +208,31 @@ def localize(data, **opts):
                 return "byte split points py %s, C %s" % (py_pts, c_split)
         stage("block_split", split_check)
 
+    # options without numiterations, for the lz77_optimal helpers that take
+    # it as an explicit argument
+    oi = dict((k, v) for k, v in o.items() if k != "numiterations")
     bounds = [0] + c_split + [end]
     c_all = ([], [], [])
     c_blocks = []
     for bi in range(len(bounds) - 1):
         a, b = bounds[bi], bounds[bi + 1]
-        c_opt = ref.lz77_optimal(data, a, b, o["numiterations"], **o)
+        c_opt = ref.lz77_optimal(data, a, b, o["numiterations"], **oi)
         c_blocks.append(c_opt)
         for k in range(3):
             c_all[k].extend((c_opt.litlens, c_opt.dists, c_opt.pos)[k])
 
         def opt_check(a=a, b=b, c_opt=c_opt, bi=bi):
             msg = describe_store_diff(
-                store_arrays(py_lz77_optimal(data, a, b, o["numiterations"], **o)),
+                store_arrays(py_lz77_optimal(data, a, b, o["numiterations"], **oi)),
                 (c_opt.litlens, c_opt.dists, c_opt.pos),
                 "optimal store block %d [%d,%d) numiterations=%d"
                 % (bi, a, b, o["numiterations"]))
             if msg and o["numiterations"] > 1:
                 # find the first iteration count at which it diverges
                 for it in range(1, o["numiterations"]):
-                    c_it = ref.lz77_optimal(data, a, b, it, **o)
+                    c_it = ref.lz77_optimal(data, a, b, it, **oi)
                     if describe_store_diff(
-                            store_arrays(py_lz77_optimal(data, a, b, it, **o)),
+                            store_arrays(py_lz77_optimal(data, a, b, it, **oi)),
                             (c_it.litlens, c_it.dists, c_it.pos), ""):
                         msg += "; first diverges with numiterations=%d" % it
                         break
