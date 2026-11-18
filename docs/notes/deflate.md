@@ -115,3 +115,12 @@ from the C). `checks.py` runs everything:
 Tests: `tests/test_deflate.py`, `tests/test_containers.py` (real modules;
 skip until all dependencies are importable, plus one test that runs
 `checks.py --quick` in a subprocess).
+
+## Interface note for blocksplitter
+
+`ZopfliBlockSplit` / `ZopfliBlockSplitLZ77` take `size_t maxblocks`, and
+`ZopfliDeflatePart` passes the `int options->blocksplittingmax`. The port does
+that conversion at the call site (`options.blocksplittingmax & 0xFFFFFFFFFFFFFFFF`),
+so `blocksplitter` always receives a non-negative `maxblocks`
+(`blocksplittingmax=-1` means "no limit" in C, and in the port). Checked
+against py-zopfli with `blocksplittingmax=-1`.

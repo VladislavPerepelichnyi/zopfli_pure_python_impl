@@ -352,7 +352,8 @@ def check_large(seeds, base=30000):
     import zopfli.zopfli as oracle
     for seed in seeds:
         data = mixed_data(base + 7000 * seed, seed)
-        for kw in (dict(numiterations=2), dict(numiterations=1, blocksplittingmax=3)):
+        for kw in (dict(numiterations=2), dict(numiterations=1, blocksplittingmax=3),
+                   dict(numiterations=1, blocksplittingmax=-1)):
             assert zopfli_pure.compress(data, **kw) == oracle.compress(data, **kw)
             ok("compress == py-zopfli (mixed, large)")
 

@@ -711,8 +711,11 @@ def deflate_part(options, btype, final, in_, instart, inend, w):
         return
 
     if options.blocksplitting:
+        # C: the int blocksplittingmax is converted to the size_t maxblocks
+        # parameter, so a negative value becomes huge (= no limit).
         splitpoints_uncompressed = blocksplitter.block_split(
-            options, in_, instart, inend, options.blocksplittingmax)
+            options, in_, instart, inend,
+            options.blocksplittingmax & _SIZE_T_MASK)
         npoints = len(splitpoints_uncompressed)
         splitpoints = [0] * npoints
 
@@ -735,7 +738,7 @@ def deflate_part(options, btype, final, in_, instart, inend, w):
         totalcost2 = 0.0
 
         splitpoints2 = blocksplitter.block_split_lz77(
-            options, lz77, options.blocksplittingmax)
+            options, lz77, options.blocksplittingmax & _SIZE_T_MASK)
         npoints2 = len(splitpoints2)
 
         for i in range(npoints2 + 1):
