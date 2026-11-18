@@ -57,3 +57,195 @@ symbol), `AddWeighedStatFreqs(stats, 1.0, laststats, 0.5)` (keeps every entry
 most 288 * ~2,000,002 < 2^30.
 
 **Port:** uses the exact (unbounded) sum; the wrap is not reproduced.
+
+## 4. `squeeze.c:486` ZopfliLZ77Optimal with `numiterations <= 0` loses the data
+
+The output store is only written inside the iteration loop (`if (cost < bestcost)
+ZopfliCopyLZ77Store(...)`), so with `numiterations` 0 or negative the store stays empty
+and `ZopfliDeflatePart` emits a block with no symbols. The stream decodes to nothing and
+the zlib/gzip checksum does not match. Reproduced with the oracle:
+`zopfli.zopfli.compress(b"hello world, hello world " * 40, numiterations=0)` gives 8
+bytes that `zlib.decompress` rejects ("incorrect data check"). **Affects output.** The
+port reproduces it (the store is left empty).
+
+## 5. `squeeze.c:277` GetBestLengths: the literal guard `i + 1 <= inend` is always true
+
+The loop runs while `i < inend`, and the long-repetition shortcut only advances `i` when
+`i + ZOPFLI_MAX_MATCH * 2 + 1 < inend`. Dead check, no effect on output. The port drops it.
+
+## 6. `squeeze.c:254-270` GetBestLengths: the long-repetition shortcut stores unconditionally
+
+The `ZOPFLI_SHORTCUT_LONG_REPETITIONS` branch stores `costs[j + 258]` without the `<`
+comparison used everywhere else in the DP, and skips the literal and match edges of the
+258 positions it jumps over. The unconditional store is safe: positions processed before
+the jump reach at most `j0 + 257`, so every overwritten entry still holds
+`ZOPFLI_LARGE_FLOAT`. The skipped edges make the parse inside long runs an approximation
+(by design). No effect on output; reproduced exactly.
+
+## 7. `squeeze.c:346`, `:372-378` FollowPath: dead and assertion-only code
+
+`total_length_test` is computed and never used; `ZopfliVerifyLenDist` and the
+`dummy_length` assert only assert. No effect on output. The port omits them.
+
+## 8. `squeeze.c:459` ZopfliLZ77Optimal: `beststats` may be read uninitialised
+
+`beststats` is only written when an iteration improves on `bestcost =
+ZOPFLI_LARGE_FLOAT`. Unreachable in practice (block costs are far below 1e30), so no
+effect on output. The port initialises it to zeros.
+
+## 9. `blocksplitter.c:204` FindLargestSplittableBlock: the last block ends at `lz77size - 1`
+
+The first iteration of `ZopfliBlockSplitLZ77` uses `lend = lz77->size`, but every later
+candidate for the last block stops one symbol short, so the final LZ77 symbol is excluded
+from both the split search and the cost estimates of that block (and a last block of
+exactly 10 symbols counts as 9, ending the search). Inconsistent and probably
+unintended. **Affects which split points are chosen.** The port reproduces it.
+
+## 10. `blocksplitter.c:251` ZopfliBlockSplitLZ77: `llpos == lend` can never be true
+
+`FindMinimum` only returns indices in `[start, end)`. Dead condition, no effect on
+output. The port keeps it (it is free).
+
+## 11. `blocksplitter.c:156` PrintBlockSplitPoints: positions relative to the store start
+
+The verbose split points are computed from `pos = 0`, whereas `ZopfliBlockSplit`
+converts the same indices starting from `instart`. When called from `ZopfliDeflatePart`
+with `instart > 0` (inputs above `ZOPFLI_MASTER_BLOCK_SIZE`), the printed positions are
+offsets within the master block, not file positions. They are also printed through
+`(int)` casts with `%d`/`%x`. Verbose output only; reproduced.
+
+## 12. `blocksplitter.c:225` ZopfliBlockSplitLZ77: no verbose line for tiny stores
+
+The early return for stores with fewer than 10 symbols comes before the verbose print,
+so with `verbose` set such blocks print no "block split points" line. Verbose output
+only; reproduced.
+
+## 13. `deflate.c:760,786-792` AddLZ77BlockAutoType: the non-expensive fixed branch is dead code
+
+`expensivefixed = (lz77->size < 1000) || fixedcost <= dyncost * 1.1`. When
+`expensivefixed` is false, `fixedcost > dyncost * 1.1 >= dyncost` (costs are
+positive), so `fixedcost < dyncost` is false and
+`AddLZ77Block(options, 1, final, lz77, lstart, lend, ...)` (fixed tree on the
+original store) can never run.
+
+**Affects output:** no.
+
+**Port:** keeps the branch as written.
+
+## 14. `deflate.c:615,760` "small block" thresholds use the size of the whole store
+
+`ZopfliCalculateBlockSizeAutoType` skips the fixed-tree cost when
+`lz77->size > 1000`, and `AddLZ77BlockAutoType` forces the expensive fixed
+recomputation when `lz77->size < 1000`. Both test the size of the whole store,
+not of the block `[lstart, lend)`: in `ZopfliDeflatePart` that store is the
+concatenation of every block of the master block, and in the block splitter it
+is the whole store being split. So a tiny block inside a large input is never
+considered "small", and the two thresholds disagree at exactly 1000 symbols
+(`> 1000` vs `< 1000`). The comments ("for larger blocks", "Only do this for
+small blocks") suggest the block size was meant.
+
+**Affects output:** yes (it is the reference behaviour).
+
+**Port:** reproduced exactly (`lz77.size`, same comparisons).
+
+## 15. `deflate.c:598` ZopfliCalculateBlockSize(btype 0) of an empty range is 0 bits
+
+For `lstart == lend`, `length == 0` gives `blocks == 0` and a cost of 0, less
+than the 3 header bits any real block needs (fixed and dynamic costs include
+them). `ZopfliCalculateBlockSizeAutoType` therefore returns 0 for empty ranges.
+
+**Affects output:** no in practice: `AddLZ77BlockAutoType` special-cases
+`lstart == lend` before using the costs, and the block splitter does not
+evaluate empty ranges.
+
+**Port:** reproduced.
+
+## 16. Verbose statistics: `size_t` wrap and division by zero
+
+`deflate.c:929`, `zlib_container.c:78`, `gzip_container.c:87` compute
+`100.0 * (double)(insize - outsize) / (double)insize` with `size_t` operands,
+so an output larger than the input prints a huge positive percentage (for
+example `108510259257115017216.000000% Removed`), and an empty input prints
+`inf`. The containers also print sizes with `%d` after `(int)` casts.
+
+**Affects output:** only the `verbose` text on stderr.
+
+**Port:** reproduces the text exactly (64-bit wrap, IEEE division by zero,
+`(int)` truncation); checked against py-zopfli's stderr.
+
+## 17. `zlib_container.c:55` adler32 gets `(unsigned)insize`
+
+`adler32(in, (unsigned)insize)` truncates the length to 32 bits, so inputs of
+4 GiB or more would get a checksum of a prefix only. (The adler32 itself never
+overflows: its `5550`-byte chunks keep `s2` below 2^32.)
+
+**Affects output:** only for inputs >= 4 GiB.
+
+**Port:** reproduces the truncation (`insize & 0xFFFFFFFF`).
+
+(Numbers may need renumbering when branches are merged.)
+
+## 18. `lz77.c:363` distance read from a stale `sublen[0]` on a "no match" cache hit
+
+In `TryGetFromLongestMatchCache`, a cache entry with `length == 0` (position
+known to have no match) is served when `sublen != NULL` by
+`ZopfliCacheToSublen(..., 0, sublen)` (which returns immediately because
+`length < 3`) followed by `*distance = sublen[*length]`, i.e. `sublen[0]`.
+That element is whatever the caller's buffer held: in `ZopfliLZ77Greedy`
+(`dummysublen`) and `GetBestLengths` (`sublen`) it is an uninitialized stack
+array, so the returned distance is indeterminate.
+**Output:** not affected. Greedy only feeds it into
+`GetLengthScore(0, dist)`, which is 0 or -1, both below `ZOPFLI_MIN_MATCH`;
+`GetBestLengths` only uses `sublen[k]` for `3 <= k <= leng`.
+**Port:** reproduces the read (`distance = sublen[length]`); the Python
+buffers are zero-initialized, so the port returns 0 or the stale value of its
+own buffer. The C harness uses the same zero-initialized, reused buffer on
+both sides, so results compare equal.
+
+## 19. `lz77.c:471` `if (dist > 0)` in `ZopfliFindLongestMatch` is always true
+
+`dist` starts as `pp - p` (with `p < pp`) or `ZOPFLI_WINDOW_SIZE - p + pp`
+(with `p > pp`; `p == pp` gives 32768 and the loop does not run) and only
+grows, so it is always >= 1 inside the loop. Dead check.
+**Output:** none. **Port:** kept for fidelity.
+
+## 20. `cache.c:91-102` `ZopfliCacheToSublen` ignores its `length` argument
+
+Apart from the `length < 3` early return, the parameter is shadowed by the
+loop-local `unsigned length` and the function always fills
+`sublen[0 .. ZopfliMaxCachedSublen()]`, also when the caller (the cache path in
+`TryGetFromLongestMatchCache`) asked for a shorter, limit-truncated length.
+It also writes `sublen[0..2]`.
+**Output:** none (callers only read up to the requested length).
+**Port:** reproduces the full fill.
+
+## 21. `lz77.c:297-331` `GetMatch` type-punned 8-byte loads; `arrayend_safe` before the array
+
+`*((size_t*)scan) == *((size_t*)match)` is an unaligned, strict-aliasing
+violating load (py-zopfli's bundled copy replaces it with `memcpy`). In
+`ZopfliFindLongestMatch`, `arrayend_safe = arrayend - 8` points before the
+start of `array` when `pos + limit < 8`, which is undefined pointer
+arithmetic (never dereferenced, since `scan < safe_end` is then false).
+**Output:** none in practice. **Port:** compares bytes/slices; the resulting
+match length is identical.
+
+## 22. `lz77.c:160-166` `ZopfliLZ77GetByteRange` wraps if positions decrease
+
+`pos[lend-1] + len - pos[lstart]` is `size_t`; it would wrap if a store held
+non-monotonic positions. Every store built by zopfli has increasing absolute
+positions (also after `ZopfliAppendLZ77Store` across master blocks), so the
+wrap is unreachable. **Port:** no masking (per the spec, only reachable wraps
+are reproduced).
+
+## 23. Comments that do not match the code (lz77.c, hash.c, cache.c)
+
+* `lz77.c:288-296`: `GetMatch` "Returns the last byte after scan, which is
+  still equal" — it returns the first position that differs (or `end`).
+* `lz77.c:94-97`: `ZopfliStoreLitLenDist` "context must be a
+  ZopfliLZ77Store*" — there is no `context` parameter (left over from a
+  callback-based API).
+* `lz77.c:422`: `unsigned dist = 0; /* Not unsigned short on purpose. */` but
+  `bestdist`, the output and the sublen entries are `unsigned short`; this is
+  fine because `dist < ZOPFLI_WINDOW_SIZE` whenever it is stored.
+
+**Output:** none.
