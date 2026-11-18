@@ -1,0 +1,8 @@
+zopfli_pure: a pure-Python port of Zopfli.
+
+This product is a derivative work of Zopfli (https://github.com/google/zopfli),
+Copyright 2011 Google Inc. All Rights Reserved.
+Authors of the original C code: Lode Vandevenne, Jyrki Alakuijala.
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Python port: Copyright 2026 Vladislav Perepelichnyi, under the same license.
