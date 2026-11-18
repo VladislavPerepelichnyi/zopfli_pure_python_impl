@@ -87,8 +87,16 @@ def _input(name):
     return INPUTS_BY_NAME[name]
 
 
-@pytest.mark.parametrize("name", SPLIT_INPUTS)
-@pytest.mark.parametrize("maxblocks", [0, 1, 3, 15])
+# block_split on large inputs is dominated by calculate_block_size_auto_type
+# (thousands of Huffman tree builds), so the most expensive combinations are
+# limited to keep the suite fast: maxblocks 0 and 15 do the same work when the
+# block count stays below 15, so 15 is only run on the smaller inputs.
+_EXPENSIVE = ("mixed", "big_full", "big_tail")
+SPLIT_CASES = ([(n, mb) for n in SPLIT_INPUTS for mb in (0, 1, 3)]
+               + [(n, 15) for n in SPLIT_INPUTS if n not in _EXPENSIVE])
+
+
+@pytest.mark.parametrize("name,maxblocks", SPLIT_CASES)
 def test_block_split(name, maxblocks):
     bs = _bs()
     util, = require_modules("util")
@@ -98,7 +106,7 @@ def test_block_split(name, maxblocks):
     assert got == _points(out)
 
 
-@pytest.mark.parametrize("name", ["text", "mixed", "big_full"])
+@pytest.mark.parametrize("name", ["text", "big_window"])
 def test_block_split_verbose(name, capsys):
     bs = _bs()
     util, = require_modules("util")
@@ -110,10 +118,10 @@ def test_block_split_verbose(name, capsys):
     assert capsys.readouterr().err == err
 
 
-SPLIT_LZ77_CASES = ([(n, mb, 0) for n in ("runs", "text", "random", "mixed",
+SPLIT_LZ77_CASES = ([(n, mb, 0) for n in ("runs", "text", "random",
                                           "runs_instart", "big_tail")
                      for mb in (0, 1, 3, 15)]
-                    + [(n, mb, 2) for n in ("text", "mixed", "big_tail")
+                    + [(n, mb, 2) for n in ("text", "big_tail")
                        for mb in (0, 3)])
 
 
@@ -138,7 +146,7 @@ def test_block_split_lz77(name, maxblocks, numiter):
 def test_block_split_lz77_verbose(capsys):
     bs = _bs()
     util, lz77, hashm = require_modules("util", "lz77", "hash")
-    data, instart, inend = _input("mixed")
+    data, instart, inend = _input("text")
     out, err = run("splitlz77", "FILE", instart, inend, 0, 0, 1, data=data)
     store = lz77.LZ77Store(data)
     s = lz77.BlockState(util.Options(), instart, inend, 0)

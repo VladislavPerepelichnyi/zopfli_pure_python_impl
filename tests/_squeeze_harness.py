@@ -127,7 +127,7 @@ def make_inputs():
         ("text_instart", text3k, 1000, 2600),
         ("runs_instart", runs, 1400, 3500),
         ("big_window", big, 34000, 36500),   # instart > ZOPFLI_WINDOW_SIZE
-        ("big_tail", big, 36000, 40000),
+        ("big_tail", big, len(big) - 4000, len(big)),
     ]
 
 
